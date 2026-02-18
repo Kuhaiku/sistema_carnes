@@ -13,9 +13,9 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- CONFIGURAÇÕES GERAIS ---
+// --- CONFIGURAÇÕES ---
 const PORT = process.env.PORT || 3000;
-const PRECO_ASSINATURA = parseFloat(process.env.ASSINATURA_PRECO || 80); // Valor do .env ou 80 padrão
+const PRECO_ASSINATURA = parseFloat(process.env.ASSINATURA_PRECO || 80);
 const JWT_SECRET = process.env.JWT_SECRET;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 
@@ -36,9 +36,16 @@ db.connect(err => {
 const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
 
 // --- MIDDLEWARES ---
+
 const verificarToken = (req, res, next) => {
+    // Permite passar direto se for rota pública (Login/Registro/Pagamento)
+    // Isso evita erro 401 em rotas que não precisam de login
+    const publicas = ['/auth', '/api/config', '/api/pagamento-sucesso'];
+    if (publicas.some(r => req.originalUrl.includes(r))) return next();
+
     const token = req.headers['authorization'];
     if (!token) return res.status(401).json({ error: 'Token ausente' });
+    
     try {
         const decoded = jwt.verify(token.replace('Bearer ', ''), JWT_SECRET);
         req.userId = decoded.id;
@@ -47,23 +54,29 @@ const verificarToken = (req, res, next) => {
 };
 
 const verificarAssinatura = (req, res, next) => {
-    // Rotas liberadas (incluindo a nova /api/config)
+    // Rotas liberadas do bloqueio de assinatura
     const liberadas = ['/auth', '/api/criar-pagamento', '/api/pagamento-sucesso', '/api/status-assinatura', '/api/config'];
-    if (liberadas.some(r => req.path.includes(r))) return next();
+    
+    // CORREÇÃO AQUI: Usar req.originalUrl
+    if (liberadas.some(r => req.originalUrl.includes(r))) return next();
 
     db.query('SELECT * FROM config_sistema WHERE usuario_id = ?', [req.userId], (err, result) => {
         if (err || result.length === 0) return res.status(403).json({ error: 'assinatura_nao_encontrada' });
+        
         const config = result[0];
-        if (config.status_assinatura === 'expirada' || new Date() > new Date(config.data_expiracao)) {
+        const agora = new Date();
+        const expiracao = new Date(config.data_expiracao);
+
+        if (config.status_assinatura === 'expirada' || agora > expiracao) {
             return res.status(403).json({ error: 'assinatura_expirada' });
         }
         next();
     });
 };
 
-// --- ROTAS PÚBLICAS E AUTH ---
+// --- ROTAS ---
 
-// NOVA ROTA: Envia o preço para o Frontend
+// Rota de Config (Pública)
 app.get('/api/config', (req, res) => {
     res.json({ preco: PRECO_ASSINATURA });
 });
@@ -73,6 +86,7 @@ app.post('/auth/register', async (req, res) => {
     try {
         const hash = await bcrypt.hash(senha, 10);
         const [u] = await db.promise().query('INSERT INTO usuarios (email, senha) VALUES (?, ?)', [email, hash]);
+        // Cria já expirada para forçar pagamento
         await db.promise().query("INSERT INTO config_sistema (usuario_id, status_assinatura, data_expiracao) VALUES (?, 'expirada', DATE_SUB(NOW(), INTERVAL 1 DAY))", [u.insertId]);
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: 'Erro ao criar conta.' }); }
@@ -89,14 +103,15 @@ app.post('/auth/login', (req, res) => {
     });
 });
 
+// Aplica middlewares nas rotas /api
 app.use('/api', verificarToken);
 app.use('/api', verificarAssinatura);
 
-// --- PAGAMENTO E SISTEMA ---
+// --- ROTAS PROTEGIDAS/SISTEMA ---
 
 app.get('/api/status-assinatura', (req, res) => {
     db.query('SELECT * FROM config_sistema WHERE usuario_id = ?', [req.userId], (err, result) => {
-        if (result.length === 0) return res.json({ status: 'expirada' });
+        if (result.length === 0) return res.json({ status: 'expirada', dias: 0 });
         const cfg = result[0];
         const dias = Math.ceil((new Date(cfg.data_expiracao) - new Date()) / 86400000);
         res.json({ 
@@ -111,7 +126,6 @@ app.post('/api/criar-pagamento', async (req, res) => {
         const preference = new Preference(client);
         const response = await preference.create({
             body: {
-                // USA O PREÇO DO .ENV AQUI
                 items: [{ title: 'Assinatura Mensal', unit_price: PRECO_ASSINATURA, quantity: 1, currency_id: 'BRL' }],
                 back_urls: { 
                     success: `${BASE_URL}/api/pagamento-sucesso?user=${req.userId}`,
@@ -129,7 +143,7 @@ app.get('/api/pagamento-sucesso', (req, res) => {
     db.query("UPDATE config_sistema SET status_assinatura='ativa', data_expiracao=DATE_ADD(NOW(), INTERVAL 30 DAY) WHERE usuario_id=?", [req.query.user], () => res.redirect('/'));
 });
 
-// --- CRUD ---
+// CRUD
 app.get('/api/dashboard', (req, res) => {
     const sql = `SELECT m.id, m.nome, c.id as carne_id, c.numero_carne, (SELECT COUNT(*) FROM parcelas p WHERE p.carne_id = c.id AND p.status = 'pago') as pagas FROM membros m JOIN carnes c ON m.id = c.membro_id WHERE m.usuario_id = ? ORDER BY m.id DESC`;
     db.query(sql, [req.userId], (err, r) => res.json(r || []));
