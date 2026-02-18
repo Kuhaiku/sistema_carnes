@@ -125,7 +125,7 @@ app.post('/api/criar-pagamento', async (req, res) => {
         const preference = new Preference(client);
         const response = await preference.create({
             body: {
-                items: [{ title: 'Assinatura Sistema Carnês', unit_price: 80, quantity: 1, currency_id: 'BRL' }],
+                items: [{ title: 'Assinatura Sistema Carnês', unit_price: 1, quantity: 1, currency_id: 'BRL' }],
                 back_urls: { 
                     success: `${process.env.BASE_URL}/api/pagamento-sucesso?user=${req.userId}`,
                     failure: `${process.env.BASE_URL}`, 
