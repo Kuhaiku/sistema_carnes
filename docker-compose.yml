@@ -11,25 +11,26 @@ services:
     env_file:
       - .env
     environment:
-      - DB_HOST=db  # Sobrescreve o localhost do .env para o nome do serviço
-      - DB_USER=root
-      - DB_PASS=root
-      - DB_NAME=sistema_carnes
+      # Sobrescreve o host para o nome do serviço interno do Docker
+      - DB_HOST=db
+      # Garante que a porta interna seja a padrão
+      - DB_PORT=3306
     restart: always
 
   # Serviço do Banco de Dados (MySQL)
   db:
     image: mysql:8.0
+    # Usa plugin nativo para evitar erros de autenticação com Node.js antigo
     command: --default-authentication-plugin=mysql_native_password
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      # Pega a senha definida no arquivo .env
+      MYSQL_ROOT_PASSWORD: ${DB_PASS}
       MYSQL_DATABASE: sistema_carnes
     ports:
-      - "3306:3306" # Expõe a porta para você poder usar o Workbench se quiser
+      - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      # O comando abaixo roda o script SQL automaticamente na primeira inicialização
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
 
 volumes:
