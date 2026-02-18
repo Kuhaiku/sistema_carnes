@@ -33,7 +33,7 @@
             <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
                 <h1 class="text-xl font-bold text-gray-800">Gestão de Carnês</h1>
                 <div class="flex items-center gap-3">
-                    <span id="status-badge" class="px-3 py-1 rounded-full text-xs font-bold bg-gray-200">Carregando...</span>
+                    <span id="status-badge" class="px-3 py-1 rounded-full text-xs font-bold bg-gray-200">...</span>
                     <button onclick="logout()" class="text-red-600 text-sm font-semibold">Sair</button>
                 </div>
             </div>
@@ -52,11 +52,11 @@
         <div class="bg-white p-6 rounded-lg w-full max-w-lg shadow-xl">
             <h3 class="text-lg font-bold mb-4">Novo Carnê</h3>
             <form id="form-novo" class="space-y-3">
-                <input id="nome" placeholder="Nome do Cliente" class="w-full rounded border-gray-300" required>
+                <input id="nome" placeholder="Nome" class="w-full rounded border-gray-300" required>
                 <input id="telefone" placeholder="Telefone" class="w-full rounded border-gray-300">
                 <div class="grid grid-cols-2 gap-3">
                     <input id="numero" type="number" placeholder="Nº Carnê" class="w-full rounded border-gray-300" required>
-                    <input id="valor" type="number" step="0.01" placeholder="Valor Parcela" class="w-full rounded border-gray-300" required>
+                    <input id="valor" type="number" step="0.01" placeholder="Valor" class="w-full rounded border-gray-300" required>
                 </div>
                 <input id="ano" type="number" value="2026" class="w-full rounded border-gray-300">
                 <div class="flex justify-end gap-2 mt-4">
@@ -70,9 +70,9 @@
     <div id="modal-bloqueio" class="fixed inset-0 hidden z-50 flex items-center justify-center overlay bg-gray-900 bg-opacity-90">
         <div class="bg-white p-8 rounded-xl text-center max-w-md shadow-2xl border-t-4 border-red-500">
             <h2 class="text-2xl font-bold text-red-600 mb-2">Licença Expirada</h2>
-            <p class="text-gray-600 mb-6">Para continuar gerenciando seus carnês, renove sua assinatura.</p>
+            <p class="text-gray-600 mb-6">Renove sua assinatura para continuar.</p>
             <div class="bg-gray-100 p-4 rounded mb-6">
-                <p class="text-3xl font-bold text-gray-800">R$ 80,00<span class="text-sm font-normal">/mês</span></p>
+                <p class="text-3xl font-bold text-gray-800">R$ <span id="valor-assinatura">--</span><span class="text-sm font-normal">/mês</span></p>
             </div>
             <button onclick="pagar()" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded shadow transition">Pagar com Mercado Pago</button>
         </div>
@@ -89,6 +89,17 @@
             return res;
         };
 
+        // --- PREÇO DINÂMICO ---
+        async function carregarPreco() {
+            try {
+                // Chama a API pública de config
+                const res = await fetch('/api/config');
+                const data = await res.json();
+                // Formata para dinheiro (100.00 -> 100,00)
+                document.getElementById('valor-assinatura').innerText = data.preco.toFixed(2).replace('.', ',');
+            } catch (e) { console.error('Erro ao carregar preço'); }
+        }
+
         // AUTH
         function setAuthMode(mode) {
             isRegister = mode === 'register';
@@ -101,25 +112,16 @@
             const email = document.getElementById('email').value;
             const senha = document.getElementById('senha').value;
             const endpoint = isRegister ? '/register' : '/login';
-            
             try {
                 const res = await fetch(`/auth${endpoint}`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ email, senha })
                 });
                 const data = await res.json();
-                
                 if (res.ok) {
-                    if (isRegister) {
-                        alert('Conta criada! Faça login.');
-                        setAuthMode('login');
-                    } else {
-                        localStorage.setItem('token', data.token);
-                        checkAuth();
-                    }
-                } else {
-                    document.getElementById('auth-msg').innerText = data.error;
-                }
+                    if (isRegister) { alert('Conta criada! Faça login.'); setAuthMode('login'); }
+                    else { localStorage.setItem('token', data.token); checkAuth(); }
+                } else { document.getElementById('auth-msg').innerText = data.error; }
             } catch (err) { alert('Erro conexão'); }
         });
 
@@ -130,10 +132,13 @@
             document.getElementById('auth-screen').classList.add('hidden');
             document.getElementById('app-screen').classList.remove('hidden');
             
+            // Carrega preço assim que entra
+            carregarPreco();
+
             const res = await api('/status-assinatura');
             const data = await res.json();
-            
             const badge = document.getElementById('status-badge');
+            
             if (data.status === 'ativa') {
                 badge.className = 'px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700';
                 badge.innerText = `Ativa (${data.dias_restantes} dias)`;
@@ -146,70 +151,49 @@
             }
         }
 
-        // APP LOGIC
         async function carregarDashboard() {
             const res = await api('/dashboard');
             if (!res.ok) return;
             const lista = await res.json();
             const container = document.getElementById('lista-clientes');
             container.innerHTML = lista.length ? '' : '<p class="text-center text-gray-500">Nenhum carnê cadastrado.</p>';
-
             lista.forEach(c => {
                 const pct = Math.round((c.pagas/12)*100);
                 container.innerHTML += `
                     <div class="bg-white p-4 rounded shadow border border-gray-100">
                         <div class="flex justify-between items-center cursor-pointer" onclick="verParcelas(${c.carne_id})">
-                            <div>
-                                <h3 class="font-bold text-lg">${c.nome}</h3>
-                                <p class="text-sm text-gray-500">Carnê: ${c.numero_carne} | ${c.pagas}/12 Pagas</p>
-                            </div>
+                            <div><h3 class="font-bold text-lg">${c.nome}</h3><p class="text-sm text-gray-500">Carnê: ${c.numero_carne}</p></div>
                             <div class="w-24 bg-gray-200 rounded-full h-2"><div class="bg-blue-600 h-2 rounded-full" style="width: ${pct}%"></div></div>
                         </div>
                         <div id="detalhes-${c.carne_id}" class="hidden mt-4 grid grid-cols-6 gap-2 pt-4 border-t"></div>
-                    </div>
-                `;
+                    </div>`;
             });
         }
 
         async function verParcelas(id) {
             const el = document.getElementById(`detalhes-${id}`);
             if (!el.classList.contains('hidden')) { el.classList.add('hidden'); return; }
-            el.classList.remove('hidden');
-            el.innerHTML = 'Carregando...';
-            
+            el.classList.remove('hidden'); el.innerHTML = 'Carregando...';
             const res = await api(`/carne/${id}/parcelas`);
             const parcelas = await res.json();
             const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-            
             el.innerHTML = parcelas.map((p, i) => `
                 <div onclick="togglePagamento(${p.id}, ${id})" class="text-center cursor-pointer hover:opacity-80">
-                    <div class="w-8 h-8 mx-auto rounded-full flex items-center justify-center text-xs text-white font-bold ${p.status==='pago'?'bg-green-500':'bg-red-400'}">
-                        ${p.numero_parcela}
-                    </div>
+                    <div class="w-8 h-8 mx-auto rounded-full flex items-center justify-center text-xs text-white font-bold ${p.status==='pago'?'bg-green-500':'bg-red-400'}">${p.numero_parcela}</div>
                     <span class="text-[10px] text-gray-400">${meses[i]}</span>
-                </div>
-            `).join('');
+                </div>`).join('');
         }
 
         async function togglePagamento(pid, cid) {
             if(!confirm('Alterar pagamento?')) return;
-            await api(`/parcela/${pid}`, { method: 'PUT' });
-            verParcelas(cid); carregarDashboard();
+            await api(`/parcela/${pid}`, { method: 'PUT' }); verParcelas(cid); carregarDashboard();
         }
 
         document.getElementById('form-novo').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const dados = {
-                nome: document.getElementById('nome').value,
-                telefone: document.getElementById('telefone').value,
-                numero_carne: document.getElementById('numero').value,
-                valor: document.getElementById('valor').value,
-                ano: document.getElementById('ano').value
-            };
+            const dados = { nome: document.getElementById('nome').value, telefone: document.getElementById('telefone').value, numero_carne: document.getElementById('numero').value, valor: document.getElementById('valor').value, ano: document.getElementById('ano').value };
             await api('/cadastrar', { method: 'POST', body: JSON.stringify(dados) });
-            toggleModal('modal-novo');
-            e.target.reset();
-            carregarDashboard();
+            toggleModal('modal-novo'); e.target.reset(); carregarDashboard();
         });
 
         async function pagar() {
