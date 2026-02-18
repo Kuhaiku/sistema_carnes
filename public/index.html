@@ -2,45 +2,76 @@
 <html lang="pt-br">
 <head>
     <meta charset="utf-8"/>
-    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Gestão de Carnês</title>
     <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
     <style>
         .modal-overlay { background-color: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); }
-        .transition-all { transition: all 0.3s ease-in-out; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800 font-sans min-h-screen">
 
-    <header class="bg-white border-b border-gray-200 sticky top-0 z-30">
-        <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-            <div class="flex items-center gap-2">
-                <div class="bg-blue-600 p-2 rounded-lg">
-                    <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+    <div id="auth-screen" class="fixed inset-0 z-50 bg-gray-100 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
+            <div class="text-center mb-8">
+                <div class="bg-blue-600 w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-4">
+                    <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
                 </div>
-                <h1 class="text-xl font-bold text-gray-900">Gestão de Carnês</h1>
+                <h2 class="text-2xl font-bold text-gray-900">Bem-vindo</h2>
+                <p class="text-gray-500 text-sm mt-1">Gerencie seus carnês de forma simples</p>
             </div>
-            <div id="status-badge"></div> </div>
-    </header>
 
-    <main class="max-w-7xl mx-auto px-4 py-8">
-        
-        <section class="mb-8 flex justify-between items-center">
-            <div>
-                <h2 class="text-2xl font-semibold text-gray-800">Painel de Controle</h2>
-                <p class="text-gray-500">Gerencie pagamentos e membros.</p>
+            <div class="flex border-b border-gray-200 mb-6">
+                <button onclick="switchTab('login')" id="tab-login" class="w-1/2 py-2 text-blue-600 border-b-2 border-blue-600 font-medium">Entrar</button>
+                <button onclick="switchTab('register')" id="tab-register" class="w-1/2 py-2 text-gray-400 hover:text-gray-600 font-medium">Criar Conta</button>
             </div>
-            <button onclick="toggleModal('new-carne-modal')" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-medium shadow-sm flex items-center gap-2 transition-all">
-                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                Novo Carnê
-            </button>
-        </section>
 
-        <section id="client-list-container" class="grid gap-6">
-            <p class="text-gray-500 text-center py-10">Carregando membros...</p>
-        </section>
+            <form id="auth-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input type="email" id="auth-email" required class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500" placeholder="seu@email.com">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+                    <input type="password" id="auth-pass" required class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500" placeholder="••••••••">
+                </div>
+                <button type="submit" id="auth-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">Entrar</button>
+            </form>
+            <p id="auth-error" class="text-red-500 text-sm text-center mt-4 hidden"></p>
+        </div>
+    </div>
 
-    </main>
+    <div id="app-screen" class="hidden">
+        <header class="bg-white border-b border-gray-200 sticky top-0 z-30">
+            <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <div class="bg-blue-600 p-2 rounded-lg">
+                        <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                    </div>
+                    <h1 class="text-xl font-bold text-gray-900">Gestão de Carnês</h1>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div id="status-badge"></div>
+                    <button onclick="logout()" class="text-sm text-red-600 hover:text-red-800 font-medium">Sair</button>
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-7xl mx-auto px-4 py-8">
+            <section class="mb-8 flex justify-between items-center">
+                <div>
+                    <h2 class="text-2xl font-semibold text-gray-800">Painel de Controle</h2>
+                    <p class="text-gray-500">Seus clientes e pagamentos.</p>
+                </div>
+                <button onclick="toggleModal('new-carne-modal')" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-medium shadow-sm flex items-center gap-2 transition-all">
+                    Novo Carnê
+                </button>
+            </section>
+            <section id="client-list-container" class="grid gap-6">
+                </section>
+        </main>
+    </div>
 
     <div id="new-carne-modal" class="fixed inset-0 z-50 hidden overflow-y-auto">
         <div class="flex items-center justify-center min-h-screen px-4">
@@ -60,7 +91,7 @@
                     </select>
                     <div class="flex justify-end gap-3 pt-4">
                         <button type="button" onclick="toggleModal('new-carne-modal')" class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg">Cancelar</button>
-                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Salvar Carnê</button>
+                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Salvar</button>
                     </div>
                 </form>
             </div>
@@ -69,69 +100,105 @@
 
     <div id="blocked-overlay" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4 modal-overlay">
         <div class="bg-white rounded-2xl p-8 max-w-md w-full text-center shadow-2xl border-t-4 border-red-500">
-            <div class="bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-                <svg class="h-8 w-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m0 0v2m0-2h2m-2 0h-2m-3-4l1.391-1.391a2 2 0 012.828 0L12 13l2.781-2.781a2 2 0 012.828 0L19 11.609M5 12V7a2 2 0 012-2h10a2 2 0 012 2v5m-14 0h14"></path></svg>
-            </div>
             <h2 class="text-2xl font-bold text-gray-900 mb-2">Licença Expirada</h2>
-            <p class="text-gray-600 mb-6">Renove seu acesso por apenas R$ 80,00/mês para continuar gerenciando.</p>
-            <button onclick="comprarAssinatura()" id="btn-pagar" class="w-full bg-[#009EE3] hover:bg-[#0086c3] text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 shadow-lg transition-all">
-                Pagar com Mercado Pago
-            </button>
+            <p class="text-gray-600 mb-6">Renove seu acesso por R$ 80,00/mês.</p>
+            <button onclick="comprarAssinatura()" id="btn-pagar" class="w-full bg-[#009EE3] text-white font-bold py-3 rounded-lg shadow-lg">Pagar com Mercado Pago</button>
         </div>
     </div>
 
     <script>
-        // --- 1. INICIALIZAÇÃO ---
-        document.addEventListener('DOMContentLoaded', () => {
-            verificarStatusAssinatura();
-            carregarDashboard();
+        let isRegisterMode = false;
+        const apiHeaders = () => ({ 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}` 
         });
 
-        // --- 2. LÓGICA DE ASSINATURA ---
-        async function verificarStatusAssinatura() {
-            try {
-                const res = await fetch('/api/status-assinatura');
-                const data = await res.json();
-                
-                const badge = document.getElementById('status-badge');
-                const overlay = document.getElementById('blocked-overlay');
-
-                if (data.status === 'ativa') {
-                    badge.innerHTML = `<span class="px-3 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full border border-green-200">Ativa (${data.dias_restantes} dias)</span>`;
-                    overlay.classList.add('hidden');
-                    document.body.style.overflow = 'auto';
-                } else {
-                    badge.innerHTML = `<span class="px-3 py-1 bg-red-100 text-red-800 text-xs font-bold rounded-full border border-red-200">Expirada</span>`;
-                    overlay.classList.remove('hidden');
-                    document.body.style.overflow = 'hidden';
-                }
-            } catch (error) { console.error('Erro ao verificar assinatura:', error); }
+        // --- AUTH LOGIC ---
+        function switchTab(mode) {
+            isRegisterMode = mode === 'register';
+            document.getElementById('tab-login').className = isRegisterMode ? 'w-1/2 py-2 text-gray-400 font-medium' : 'w-1/2 py-2 text-blue-600 border-b-2 border-blue-600 font-medium';
+            document.getElementById('tab-register').className = isRegisterMode ? 'w-1/2 py-2 text-blue-600 border-b-2 border-blue-600 font-medium' : 'w-1/2 py-2 text-gray-400 font-medium';
+            document.getElementById('auth-btn').innerText = isRegisterMode ? 'Cadastrar e Entrar' : 'Entrar';
+            document.getElementById('auth-error').classList.add('hidden');
         }
 
-        async function comprarAssinatura() {
-            const btn = document.getElementById('btn-pagar');
-            btn.innerHTML = 'Gerando Link...';
-            btn.disabled = true;
+        document.getElementById('auth-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('auth-email').value;
+            const senha = document.getElementById('auth-pass').value;
+            const endpoint = isRegisterMode ? '/auth/register' : '/auth/login';
+
             try {
-                const res = await fetch('/api/criar-pagamento', { method: 'POST' });
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, senha })
+                });
                 const data = await res.json();
-                if (data.init_point) window.location.href = data.init_point;
-            } catch (e) {
-                alert('Erro ao conectar com Mercado Pago');
-                btn.innerHTML = 'Tentar Novamente';
-                btn.disabled = false;
+
+                if (res.ok) {
+                    if (isRegisterMode) {
+                        // Se registrou, faz login automático
+                        switchTab('login');
+                        document.getElementById('auth-pass').value = senha; // UX Trick
+                        document.getElementById('auth-btn').click();
+                    } else {
+                        localStorage.setItem('token', data.token);
+                        checkAuth();
+                    }
+                } else {
+                    const errEl = document.getElementById('auth-error');
+                    errEl.innerText = data.error || 'Erro desconhecido';
+                    errEl.classList.remove('hidden');
+                }
+            } catch (err) { alert('Erro de conexão'); }
+        });
+
+        function logout() {
+            localStorage.removeItem('token');
+            checkAuth();
+        }
+
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                document.getElementById('auth-screen').classList.add('hidden');
+                document.getElementById('app-screen').classList.remove('hidden');
+                verificarStatusAssinatura();
+                carregarDashboard();
+            } else {
+                document.getElementById('auth-screen').classList.remove('hidden');
+                document.getElementById('app-screen').classList.add('hidden');
             }
         }
 
-        // --- 3. DASHBOARD E LISTAGEM ---
+        // --- APP LOGIC (COM HEADERS AUTENTICADOS) ---
+        
+        async function verificarStatusAssinatura() {
+            try {
+                const res = await fetch('/api/status-assinatura', { headers: apiHeaders() });
+                const data = await res.json();
+                const badge = document.getElementById('status-badge');
+                
+                if (data.status === 'ativa') {
+                    badge.innerHTML = `<span class="px-3 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full border border-green-200">Ativa (${data.dias_restantes} dias)</span>`;
+                    document.getElementById('blocked-overlay').classList.add('hidden');
+                } else {
+                    badge.innerHTML = `<span class="px-3 py-1 bg-red-100 text-red-800 text-xs font-bold rounded-full border border-red-200">Expirada</span>`;
+                    document.getElementById('blocked-overlay').classList.remove('hidden');
+                }
+            } catch (e) { console.error(e); }
+        }
+
         async function carregarDashboard() {
             const container = document.getElementById('client-list-container');
+            container.innerHTML = '<p class="text-center text-gray-500">Carregando...</p>';
             try {
-                const res = await fetch('/api/dashboard');
-                if (res.status === 403) return; // Bloqueado
-                
+                const res = await fetch('/api/dashboard', { headers: apiHeaders() });
+                if (res.status === 401) return logout(); // Token expirou
+
                 const clientes = await res.json();
-                container.innerHTML = clientes.length ? '' : '<p class="text-center text-gray-500">Nenhum carnê cadastrado.</p>';
+                container.innerHTML = clientes.length ? '' : '<p class="text-center text-gray-500">Nenhum carnê encontrado.</p>';
 
                 clientes.forEach(c => {
                     const pct = Math.round((c.pagas / 12) * 100);
@@ -157,8 +224,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div id="detalhes-${c.carne_id}" class="hidden bg-gray-50 p-6 border-t border-gray-100 grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-3">
-                                </div>
+                            <div id="detalhes-${c.carne_id}" class="hidden bg-gray-50 p-6 border-t border-gray-100 grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-3"></div>
                         </div>
                     `;
                 });
@@ -167,15 +233,11 @@
 
         async function carregarParcelas(id) {
             const container = document.getElementById(`detalhes-${id}`);
-            if (!container.classList.contains('hidden')) {
-                container.classList.add('hidden');
-                return;
-            }
-            
-            container.innerHTML = '<p class="col-span-12 text-center text-xs">Carregando...</p>';
+            if (!container.classList.contains('hidden')) { container.classList.add('hidden'); return; }
             container.classList.remove('hidden');
+            container.innerHTML = '<p class="col-span-12 text-center text-xs">Carregando...</p>';
 
-            const res = await fetch(`/api/carne/${id}/parcelas`);
+            const res = await fetch(`/api/carne/${id}/parcelas`, { headers: apiHeaders() });
             const parcelas = await res.json();
             const meses = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
 
@@ -189,19 +251,15 @@
             `).join('');
         }
 
-        async function pagarParcela(parcelaId, carneId) {
-            if (!confirm('Alterar status do pagamento?')) return;
-            await fetch(`/api/parcela/${parcelaId}`, { method: 'PUT' });
-            carregarParcelas(carneId); // Atualiza bolinhas
-            carregarDashboard(); // Atualiza barra de progresso (reload silencioso na lista seria ideal, mas aqui recarrega tudo pra simplificar)
+        async function pagarParcela(pid, cid) {
+            if (!confirm('Alterar status?')) return;
+            await fetch(`/api/parcela/${pid}`, { method: 'PUT', headers: apiHeaders() });
+            carregarParcelas(cid); carregarDashboard();
         }
 
-        // --- 4. NOVO CARNÊ ---
+        // Novo Carnê
         document.getElementById('new-carne-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const btn = e.target.querySelector('button[type="submit"]');
-            btn.disabled = true; btn.innerText = "Salvando...";
-
             const dados = {
                 nome: document.getElementById('inp-nome').value,
                 telefone: document.getElementById('inp-telefone').value,
@@ -209,29 +267,20 @@
                 valor: document.getElementById('inp-valor').value,
                 ano: document.getElementById('inp-ano').value
             };
-
-            try {
-                const res = await fetch('/api/cadastrar', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(dados)
-                });
-                
-                if (res.ok) {
-                    toggleModal('new-carne-modal');
-                    e.target.reset();
-                    carregarDashboard();
-                } else {
-                    alert('Erro ao salvar.');
-                }
-            } catch (err) { alert('Erro de conexão.'); }
-            
-            btn.disabled = false; btn.innerText = "Salvar Carnê";
+            const res = await fetch('/api/cadastrar', { method: 'POST', headers: apiHeaders(), body: JSON.stringify(dados) });
+            if (res.ok) { toggleModal('new-carne-modal'); e.target.reset(); carregarDashboard(); }
         });
 
-        function toggleModal(id) {
-            document.getElementById(id).classList.toggle('hidden');
+        async function comprarAssinatura() {
+            const res = await fetch('/api/criar-pagamento', { method: 'POST', headers: apiHeaders() });
+            const data = await res.json();
+            if (data.init_point) window.location.href = data.init_point;
         }
+
+        function toggleModal(id) { document.getElementById(id).classList.toggle('hidden'); }
+        
+        // Init Check
+        document.addEventListener('DOMContentLoaded', checkAuth);
     </script>
 </body>
 </html>
