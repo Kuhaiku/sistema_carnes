@@ -40,7 +40,6 @@ const verificarToken = (req, res, next) => {
     if (!token) return res.status(401).json({ error: 'Acesso negado' });
 
     try {
-        // Remove o prefixo "Bearer " se existir
         const tokenReal = token.startsWith('Bearer ') ? token.slice(7, token.length) : token;
         const decoded = jwt.verify(tokenReal, JWT_SECRET);
         req.userId = decoded.id;
@@ -52,24 +51,24 @@ const verificarToken = (req, res, next) => {
 
 // Verifica se a assinatura do usuário está ativa (SaaS)
 const verificarAssinatura = (req, res, next) => {
-    // Rotas que não precisam de assinatura ativa
     const rotasLivres = ['/auth/login', '/auth/register', '/api/criar-pagamento', '/api/pagamento-sucesso', '/api/status-assinatura'];
     if (rotasLivres.some(r => req.path.includes(r))) return next();
 
     db.query('SELECT * FROM config_sistema WHERE usuario_id = ?', [req.userId || 1], (err, result) => {
         if (err) return next();
         
-        // Se o usuário não tem registro na config, cria um período de teste (30 dias)
+        // CORREÇÃO: Se não existir config, cria uma JÁ EXPIRADA para forçar pagamento
         if (result.length === 0) {
-            db.query("INSERT INTO config_sistema (usuario_id, status_assinatura, data_expiracao) VALUES (?, 'ativa', DATE_ADD(NOW(), INTERVAL 30 DAY))", [req.userId]);
-            return next();
+            db.query("INSERT INTO config_sistema (usuario_id, status_assinatura, data_expiracao) VALUES (?, 'expirada', DATE_SUB(NOW(), INTERVAL 1 DAY))", [req.userId]);
+            return res.status(403).json({ error: 'assinatura_expirada' }); // Bloqueia imediatamente
         }
 
         const config = result[0];
         const agora = new Date();
         const expiracao = new Date(config.data_expiracao);
 
-        if (agora > expiracao) {
+        // Se expirou ou está marcada como expirada, bloqueia
+        if (config.status_assinatura === 'expirada' || agora > expiracao) {
             return res.status(403).json({ error: 'assinatura_expirada' });
         }
         next();
@@ -84,11 +83,11 @@ app.post('/auth/register', async (req, res) => {
 
     try {
         const hash = await bcrypt.hash(senha, 10);
-        // Cria usuário
         const [result] = await db.promise().query('INSERT INTO usuarios (email, senha) VALUES (?, ?)', [email, hash]);
         
-        // Cria configuração inicial de assinatura (30 dias grátis)
-        await db.promise().query("INSERT INTO config_sistema (usuario_id, status_assinatura, data_expiracao) VALUES (?, 'ativa', DATE_ADD(NOW(), INTERVAL 30 DAY))", [result.insertId]);
+        // CORREÇÃO: Cria assinatura EXPIRADA (Data de Ontem)
+        // Isso fará a tela de bloqueio aparecer no primeiro login
+        await db.promise().query("INSERT INTO config_sistema (usuario_id, status_assinatura, data_expiracao) VALUES (?, 'expirada', DATE_SUB(NOW(), INTERVAL 1 DAY))", [result.insertId]);
 
         res.json({ success: true, message: 'Usuário criado com sucesso!' });
     } catch (err) {
@@ -113,7 +112,6 @@ app.post('/auth/login', (req, res) => {
     });
 });
 
-// APLICAÇÃO DOS MIDDLEWARES NAS ROTAS ABAIXO (/api)
 app.use('/api', verificarToken);
 app.use('/api', verificarAssinatura);
 
@@ -121,27 +119,28 @@ app.use('/api', verificarAssinatura);
 
 app.get('/api/status-assinatura', (req, res) => {
     db.query('SELECT * FROM config_sistema WHERE usuario_id = ?', [req.userId], (err, result) => {
-        if (err || result.length === 0) return res.json({ status: 'ativa', dias_restantes: 30 });
+        // Se não achar, assume expirada para forçar a criação/bloqueio
+        if (err || result.length === 0) return res.json({ status: 'expirada', dias_restantes: 0 });
         
         const config = result[0];
         const agora = new Date();
         const expiracao = new Date(config.data_expiracao);
         const diasRestantes = Math.ceil((expiracao - agora) / (1000 * 60 * 60 * 24));
         
-        res.json({ status: agora > expiracao ? 'expirada' : 'ativa', dias_restantes });
+        const statusFinal = (config.status_assinatura === 'expirada' || agora > expiracao) ? 'expirada' : 'ativa';
+
+        res.json({ status: statusFinal, dias_restantes: diasRestantes > 0 ? diasRestantes : 0 });
     });
 });
 
 app.post('/api/criar-pagamento', async (req, res) => {
     try {
-        // Define a URL base para retorno (ajusta se estiver local ou produção)
         const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
         
         const preference = new Preference(client);
         const result = await preference.create({
             body: {
                 items: [{ title: 'Assinatura Mensal - Gestão Carnês', unit_price: 80, quantity: 1, currency_id: 'BRL' }],
-                // Passamos o ID do usuário na URL de sucesso para saber quem ativar
                 back_urls: {
                     success: `${baseUrl}/api/pagamento-sucesso?user=${req.userId}`,
                     failure: `${baseUrl}`,
@@ -160,25 +159,21 @@ app.post('/api/criar-pagamento', async (req, res) => {
 app.get('/api/pagamento-sucesso', (req, res) => {
     const usuarioId = req.query.user;
 
-    if (!usuarioId) {
-        return res.redirect('/?error=sem_usuario');
-    }
+    if (!usuarioId) return res.redirect('/?error=sem_usuario');
 
-    // Renova a assinatura do usuário específico
+    // Renova a assinatura (Adiciona 30 dias a partir de HOJE e muda status para ativa)
     db.query(
         "UPDATE config_sistema SET data_expiracao = DATE_ADD(NOW(), INTERVAL 30 DAY), status_assinatura = 'ativa' WHERE usuario_id = ?", 
         [usuarioId], 
         (err) => {
             if (err) console.error("Erro SQL ao renovar:", err);
-            // Redireciona para a home
             res.redirect('/');
         }
     );
 });
 
-// --- 6. ROTAS DO SISTEMA (CRUD FILTRADO POR USUÁRIO) ---
+// --- 6. ROTAS DO SISTEMA (CRUD) ---
 
-// Dashboard: Lista apenas membros do usuário logado
 app.get('/api/dashboard', (req, res) => {
     const sql = `
         SELECT m.id, m.nome, m.telefone, c.id as carne_id, c.numero_carne, 
@@ -194,16 +189,13 @@ app.get('/api/dashboard', (req, res) => {
     });
 });
 
-// Detalhes do Carnê
 app.get('/api/carne/:id/parcelas', (req, res) => {
-    // Busca parcelas. Idealmente verificaria se o carnê pertence ao usuário, mas simplificamos aqui.
     db.query('SELECT * FROM parcelas WHERE carne_id = ? ORDER BY numero_parcela ASC', [req.params.id], (err, results) => {
         if (err) return res.status(500).send(err);
         res.json(results);
     });
 });
 
-// Cadastro: Insere vinculando ao ID do usuário
 app.post('/api/cadastrar', async (req, res) => {
     const { nome, telefone, numero_carne, valor, ano } = req.body;
     
@@ -212,19 +204,16 @@ app.post('/api/cadastrar', async (req, res) => {
     }
 
     try {
-        // 1. Cria Membro vinculado ao usuário
         const [membro] = await db.promise().query(
             'INSERT INTO membros (nome, telefone, usuario_id) VALUES (?, ?, ?)', 
             [nome, telefone, req.userId]
         );
         
-        // 2. Cria Carnê
         const [carne] = await db.promise().query(
             'INSERT INTO carnes (membro_id, numero_carne, valor_parcela, ano_referencia) VALUES (?, ?, ?, ?)', 
             [membro.insertId, numero_carne, valor, ano]
         );
         
-        // 3. Gera 12 Parcelas
         const parcelas = [];
         for (let i = 1; i <= 12; i++) {
             parcelas.push([carne.insertId, i, `${ano}-${i}-10`]);
@@ -242,7 +231,6 @@ app.post('/api/cadastrar', async (req, res) => {
     }
 });
 
-// Atualizar Parcela (Pagar/Estornar)
 app.put('/api/parcela/:id', (req, res) => {
     db.query('SELECT status FROM parcelas WHERE id = ?', [req.params.id], (err, r) => {
         if (err || r.length === 0) return res.status(404).json({ error: 'Parcela não encontrada' });
@@ -260,7 +248,6 @@ app.put('/api/parcela/:id', (req, res) => {
     });
 });
 
-// Inicialização
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`);
