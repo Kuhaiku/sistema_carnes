@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  # Serviço da Aplicação (Node.js)
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=db  # Sobrescreve o localhost do .env para o nome do serviço
+      - DB_USER=root
+      - DB_PASS=root
+      - DB_NAME=sistema_carnes
+    restart: always
+
+  # Serviço do Banco de Dados (MySQL)
+  db:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: sistema_carnes
+    ports:
+      - "3306:3306" # Expõe a porta para você poder usar o Workbench se quiser
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # O comando abaixo roda o script SQL automaticamente na primeira inicialização
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+volumes:
+  mysql_data:
