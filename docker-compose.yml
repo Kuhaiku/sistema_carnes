@@ -1,7 +1,6 @@
 version: '3.8'
 
 services:
-  # Serviço da Aplicação (Node.js)
   app:
     build: .
     ports:
@@ -11,20 +10,15 @@ services:
     env_file:
       - .env
     environment:
-      # Sobrescreve o host para o nome do serviço interno do Docker
       - DB_HOST=db
-      # Garante que a porta interna seja a padrão
       - DB_PORT=3306
     restart: always
 
-  # Serviço do Banco de Dados (MySQL)
   db:
     image: mysql:8.0
-    # Usa plugin nativo para evitar erros de autenticação com Node.js antigo
     command: --default-authentication-plugin=mysql_native_password
     restart: always
     environment:
-      # Pega a senha definida no arquivo .env
       MYSQL_ROOT_PASSWORD: ${DB_PASS}
       MYSQL_DATABASE: sistema_carnes
     ports:

@@ -1,286 +1,225 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Gestão de Carnês</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Carnês</title>
     <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
     <style>
-        .modal-overlay { background-color: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); }
         .hidden { display: none !important; }
+        .overlay { background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-800 font-sans min-h-screen">
+<body class="bg-gray-100 font-sans min-h-screen">
 
-    <div id="auth-screen" class="fixed inset-0 z-50 bg-gray-100 flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
-            <div class="text-center mb-8">
-                <div class="bg-blue-600 w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-4">
-                    <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                </div>
-                <h2 class="text-2xl font-bold text-gray-900">Bem-vindo</h2>
-                <p class="text-gray-500 text-sm mt-1">Gerencie seus carnês de forma simples</p>
+    <div id="auth-screen" class="fixed inset-0 flex items-center justify-center bg-gray-200 z-50">
+        <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
+            <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Acesso ao Sistema</h2>
+            <div class="flex mb-4 border-b">
+                <button onclick="setAuthMode('login')" id="tab-login" class="flex-1 py-2 text-blue-600 border-b-2 border-blue-600 font-bold">Login</button>
+                <button onclick="setAuthMode('register')" id="tab-register" class="flex-1 py-2 text-gray-500">Criar Conta</button>
             </div>
-
-            <div class="flex border-b border-gray-200 mb-6">
-                <button onclick="switchTab('login')" id="tab-login" class="w-1/2 py-2 text-blue-600 border-b-2 border-blue-600 font-medium">Entrar</button>
-                <button onclick="switchTab('register')" id="tab-register" class="w-1/2 py-2 text-gray-400 hover:text-gray-600 font-medium">Criar Conta</button>
-            </div>
-
             <form id="auth-form" class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                    <input type="email" id="auth-email" required class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500" placeholder="seu@email.com">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Senha</label>
-                    <input type="password" id="auth-pass" required class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500" placeholder="••••••••">
-                </div>
-                <button type="submit" id="auth-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">Entrar</button>
+                <input type="email" id="email" placeholder="Seu E-mail" class="w-full rounded border-gray-300 p-2" required>
+                <input type="password" id="senha" placeholder="Sua Senha" class="w-full rounded border-gray-300 p-2" required>
+                <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-700 transition">Entrar</button>
             </form>
-            <p id="auth-error" class="text-red-500 text-sm text-center mt-4 hidden"></p>
+            <p id="auth-msg" class="text-center text-red-500 mt-4 text-sm"></p>
         </div>
     </div>
 
     <div id="app-screen" class="hidden">
-        <header class="bg-white border-b border-gray-200 sticky top-0 z-30">
-            <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <div class="bg-blue-600 p-2 rounded-lg">
-                        <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-                    </div>
-                    <h1 class="text-xl font-bold text-gray-900">Gestão de Carnês</h1>
-                </div>
-                <div class="flex items-center gap-4">
-                    <div id="status-badge"></div>
-                    <button onclick="logout()" class="text-sm text-red-600 hover:text-red-800 font-medium">Sair</button>
+        <header class="bg-white shadow sticky top-0 z-30">
+            <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+                <h1 class="text-xl font-bold text-gray-800">Gestão de Carnês</h1>
+                <div class="flex items-center gap-3">
+                    <span id="status-badge" class="px-3 py-1 rounded-full text-xs font-bold bg-gray-200">Carregando...</span>
+                    <button onclick="logout()" class="text-red-600 text-sm font-semibold">Sair</button>
                 </div>
             </div>
         </header>
 
-        <main class="max-w-7xl mx-auto px-4 py-8">
-            <section class="mb-8 flex justify-between items-center">
-                <div>
-                    <h2 class="text-2xl font-semibold text-gray-800">Painel de Controle</h2>
-                    <p class="text-gray-500">Seus clientes e pagamentos.</p>
-                </div>
-                <button onclick="toggleModal('new-carne-modal')" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-medium shadow-sm flex items-center gap-2 transition-all">
-                    Novo Carnê
-                </button>
-            </section>
-            <section id="client-list-container" class="grid gap-6">
-                </section>
+        <main class="max-w-6xl mx-auto px-4 py-8">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-700">Meus Clientes</h2>
+                <button onclick="toggleModal('modal-novo')" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 font-medium">+ Novo Carnê</button>
+            </div>
+            <div id="lista-clientes" class="grid gap-4"></div>
         </main>
     </div>
 
-    <div id="new-carne-modal" class="fixed inset-0 z-50 hidden overflow-y-auto">
-        <div class="flex items-center justify-center min-h-screen px-4">
-            <div class="fixed inset-0 modal-overlay" onclick="toggleModal('new-carne-modal')"></div>
-            <div class="bg-white rounded-xl shadow-xl transform transition-all sm:max-w-lg sm:w-full z-10 p-6">
-                <h3 class="text-xl font-bold text-gray-900 mb-4">Novo Cadastro</h3>
-                <form id="new-carne-form" class="space-y-4">
-                    <input id="inp-nome" class="w-full rounded-lg border-gray-300" placeholder="Nome do Cliente" type="text" required />
-                    <input id="inp-telefone" class="w-full rounded-lg border-gray-300" placeholder="Telefone" type="text" />
-                    <div class="grid grid-cols-2 gap-4">
-                        <input id="inp-numero" class="w-full rounded-lg border-gray-300" placeholder="Nº Carnê" type="number" required />
-                        <input id="inp-valor" class="w-full rounded-lg border-gray-300" placeholder="Valor (R$)" type="number" step="0.01" />
-                    </div>
-                    <select id="inp-ano" class="w-full rounded-lg border-gray-300">
-                        <option value="2025">2025</option>
-                        <option value="2026">2026</option>
-                    </select>
-                    <div class="flex justify-end gap-3 pt-4">
-                        <button type="button" onclick="toggleModal('new-carne-modal')" class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg">Cancelar</button>
-                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Salvar</button>
-                    </div>
-                </form>
-            </div>
+    <div id="modal-novo" class="fixed inset-0 hidden z-40 flex items-center justify-center overlay">
+        <div class="bg-white p-6 rounded-lg w-full max-w-lg shadow-xl">
+            <h3 class="text-lg font-bold mb-4">Novo Carnê</h3>
+            <form id="form-novo" class="space-y-3">
+                <input id="nome" placeholder="Nome do Cliente" class="w-full rounded border-gray-300" required>
+                <input id="telefone" placeholder="Telefone" class="w-full rounded border-gray-300">
+                <div class="grid grid-cols-2 gap-3">
+                    <input id="numero" type="number" placeholder="Nº Carnê" class="w-full rounded border-gray-300" required>
+                    <input id="valor" type="number" step="0.01" placeholder="Valor Parcela" class="w-full rounded border-gray-300" required>
+                </div>
+                <input id="ano" type="number" value="2026" class="w-full rounded border-gray-300">
+                <div class="flex justify-end gap-2 mt-4">
+                    <button type="button" onclick="toggleModal('modal-novo')" class="px-4 py-2 text-gray-600">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded">Salvar</button>
+                </div>
+            </form>
         </div>
     </div>
 
-    <div id="blocked-overlay" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4 modal-overlay">
-        <div class="bg-white rounded-2xl p-8 max-w-md w-full text-center shadow-2xl border-t-4 border-red-500">
-            <h2 class="text-2xl font-bold text-gray-900 mb-2">Licença Expirada</h2>
-            <p class="text-gray-600 mb-6">Renove seu acesso por R$ 80,00/mês.</p>
-            <button onclick="comprarAssinatura()" id="btn-pagar" class="w-full bg-[#009EE3] text-white font-bold py-3 rounded-lg shadow-lg">Pagar com Mercado Pago</button>
+    <div id="modal-bloqueio" class="fixed inset-0 hidden z-50 flex items-center justify-center overlay bg-gray-900 bg-opacity-90">
+        <div class="bg-white p-8 rounded-xl text-center max-w-md shadow-2xl border-t-4 border-red-500">
+            <h2 class="text-2xl font-bold text-red-600 mb-2">Licença Expirada</h2>
+            <p class="text-gray-600 mb-6">Para continuar gerenciando seus carnês, renove sua assinatura.</p>
+            <div class="bg-gray-100 p-4 rounded mb-6">
+                <p class="text-3xl font-bold text-gray-800">R$ 80,00<span class="text-sm font-normal">/mês</span></p>
+            </div>
+            <button onclick="pagar()" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded shadow transition">Pagar com Mercado Pago</button>
         </div>
     </div>
 
     <script>
-        let isRegisterMode = false;
-        const apiHeaders = () => ({ 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}` 
-        });
+        let isRegister = false;
+        const api = async (url, options = {}) => {
+            const token = localStorage.getItem('token');
+            const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            const res = await fetch(`/api${url}`, { ...options, headers });
+            if (res.status === 401) logout();
+            return res;
+        };
 
-        // --- AUTH LOGIC ---
-        function switchTab(mode) {
-            isRegisterMode = mode === 'register';
-            document.getElementById('tab-login').className = isRegisterMode ? 'w-1/2 py-2 text-gray-400 font-medium' : 'w-1/2 py-2 text-blue-600 border-b-2 border-blue-600 font-medium';
-            document.getElementById('tab-register').className = isRegisterMode ? 'w-1/2 py-2 text-blue-600 border-b-2 border-blue-600 font-medium' : 'w-1/2 py-2 text-gray-400 font-medium';
-            document.getElementById('auth-btn').innerText = isRegisterMode ? 'Cadastrar e Entrar' : 'Entrar';
-            document.getElementById('auth-error').classList.add('hidden');
+        // AUTH
+        function setAuthMode(mode) {
+            isRegister = mode === 'register';
+            document.getElementById('tab-login').className = isRegister ? 'flex-1 py-2 text-gray-500' : 'flex-1 py-2 text-blue-600 border-b-2 border-blue-600 font-bold';
+            document.getElementById('tab-register').className = isRegister ? 'flex-1 py-2 text-blue-600 border-b-2 border-blue-600 font-bold' : 'flex-1 py-2 text-gray-500';
         }
 
         document.getElementById('auth-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const email = document.getElementById('auth-email').value;
-            const senha = document.getElementById('auth-pass').value;
-            const endpoint = isRegisterMode ? '/auth/register' : '/auth/login';
-
+            const email = document.getElementById('email').value;
+            const senha = document.getElementById('senha').value;
+            const endpoint = isRegister ? '/register' : '/login';
+            
             try {
-                const res = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                const res = await fetch(`/auth${endpoint}`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ email, senha })
                 });
                 const data = await res.json();
-
+                
                 if (res.ok) {
-                    if (isRegisterMode) {
-                        // Se registrou, faz login automático
-                        switchTab('login');
-                        document.getElementById('auth-pass').value = senha; // UX Trick
-                        document.getElementById('auth-btn').click();
+                    if (isRegister) {
+                        alert('Conta criada! Faça login.');
+                        setAuthMode('login');
                     } else {
                         localStorage.setItem('token', data.token);
                         checkAuth();
                     }
                 } else {
-                    const errEl = document.getElementById('auth-error');
-                    errEl.innerText = data.error || 'Erro desconhecido';
-                    errEl.classList.remove('hidden');
+                    document.getElementById('auth-msg').innerText = data.error;
                 }
-            } catch (err) { alert('Erro de conexão'); }
+            } catch (err) { alert('Erro conexão'); }
         });
 
-        function logout() {
-            localStorage.removeItem('token');
-            checkAuth();
-        }
+        function logout() { localStorage.removeItem('token'); location.reload(); }
 
-        function checkAuth() {
-            const token = localStorage.getItem('token');
-            if (token) {
-                document.getElementById('auth-screen').classList.add('hidden');
-                document.getElementById('app-screen').classList.remove('hidden');
-                verificarStatusAssinatura();
+        async function checkAuth() {
+            if (!localStorage.getItem('token')) return;
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('app-screen').classList.remove('hidden');
+            
+            const res = await api('/status-assinatura');
+            const data = await res.json();
+            
+            const badge = document.getElementById('status-badge');
+            if (data.status === 'ativa') {
+                badge.className = 'px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700';
+                badge.innerText = `Ativa (${data.dias_restantes} dias)`;
+                document.getElementById('modal-bloqueio').classList.add('hidden');
                 carregarDashboard();
             } else {
-                document.getElementById('auth-screen').classList.remove('hidden');
-                document.getElementById('app-screen').classList.add('hidden');
+                badge.className = 'px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700';
+                badge.innerText = 'Expirada';
+                document.getElementById('modal-bloqueio').classList.remove('hidden');
             }
         }
 
-        // --- APP LOGIC (COM HEADERS AUTENTICADOS) ---
-        
-        async function verificarStatusAssinatura() {
-            try {
-                const res = await fetch('/api/status-assinatura', { headers: apiHeaders() });
-                const data = await res.json();
-                const badge = document.getElementById('status-badge');
-                
-                if (data.status === 'ativa') {
-                    badge.innerHTML = `<span class="px-3 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full border border-green-200">Ativa (${data.dias_restantes} dias)</span>`;
-                    document.getElementById('blocked-overlay').classList.add('hidden');
-                } else {
-                    badge.innerHTML = `<span class="px-3 py-1 bg-red-100 text-red-800 text-xs font-bold rounded-full border border-red-200">Expirada</span>`;
-                    document.getElementById('blocked-overlay').classList.remove('hidden');
-                }
-            } catch (e) { console.error(e); }
-        }
-
+        // APP LOGIC
         async function carregarDashboard() {
-            const container = document.getElementById('client-list-container');
-            container.innerHTML = '<p class="text-center text-gray-500">Carregando...</p>';
-            try {
-                const res = await fetch('/api/dashboard', { headers: apiHeaders() });
-                if (res.status === 401) return logout(); // Token expirou
+            const res = await api('/dashboard');
+            if (!res.ok) return;
+            const lista = await res.json();
+            const container = document.getElementById('lista-clientes');
+            container.innerHTML = lista.length ? '' : '<p class="text-center text-gray-500">Nenhum carnê cadastrado.</p>';
 
-                const clientes = await res.json();
-                container.innerHTML = clientes.length ? '' : '<p class="text-center text-gray-500">Nenhum carnê encontrado.</p>';
-
-                clientes.forEach(c => {
-                    const pct = Math.round((c.pagas / 12) * 100);
-                    container.innerHTML += `
-                        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-4">
-                            <div class="p-6 cursor-pointer hover:bg-gray-50 transition-colors" onclick="carregarParcelas(${c.carne_id})">
-                                <div class="flex flex-wrap items-center justify-between gap-4">
-                                    <div class="flex items-center gap-4">
-                                        <div class="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold">${c.nome.substring(0,2).toUpperCase()}</div>
-                                        <div>
-                                            <h3 class="font-bold text-gray-900">${c.nome}</h3>
-                                            <p class="text-sm text-gray-500">Carnê: ${c.numero_carne}</p>
-                                        </div>
-                                    </div>
-                                    <div class="w-full md:w-1/3">
-                                        <div class="flex justify-between text-xs mb-1">
-                                            <span>${c.pagas}/12 Pagas</span>
-                                            <span class="font-bold text-blue-600">${pct}%</span>
-                                        </div>
-                                        <div class="w-full bg-gray-200 rounded-full h-2">
-                                            <div class="bg-blue-600 h-2 rounded-full" style="width: ${pct}%"></div>
-                                        </div>
-                                    </div>
-                                </div>
+            lista.forEach(c => {
+                const pct = Math.round((c.pagas/12)*100);
+                container.innerHTML += `
+                    <div class="bg-white p-4 rounded shadow border border-gray-100">
+                        <div class="flex justify-between items-center cursor-pointer" onclick="verParcelas(${c.carne_id})">
+                            <div>
+                                <h3 class="font-bold text-lg">${c.nome}</h3>
+                                <p class="text-sm text-gray-500">Carnê: ${c.numero_carne} | ${c.pagas}/12 Pagas</p>
                             </div>
-                            <div id="detalhes-${c.carne_id}" class="hidden bg-gray-50 p-6 border-t border-gray-100 grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-3"></div>
+                            <div class="w-24 bg-gray-200 rounded-full h-2"><div class="bg-blue-600 h-2 rounded-full" style="width: ${pct}%"></div></div>
                         </div>
-                    `;
-                });
-            } catch (e) { console.error(e); }
+                        <div id="detalhes-${c.carne_id}" class="hidden mt-4 grid grid-cols-6 gap-2 pt-4 border-t"></div>
+                    </div>
+                `;
+            });
         }
 
-        async function carregarParcelas(id) {
-            const container = document.getElementById(`detalhes-${id}`);
-            if (!container.classList.contains('hidden')) { container.classList.add('hidden'); return; }
-            container.classList.remove('hidden');
-            container.innerHTML = '<p class="col-span-12 text-center text-xs">Carregando...</p>';
-
-            const res = await fetch(`/api/carne/${id}/parcelas`, { headers: apiHeaders() });
+        async function verParcelas(id) {
+            const el = document.getElementById(`detalhes-${id}`);
+            if (!el.classList.contains('hidden')) { el.classList.add('hidden'); return; }
+            el.classList.remove('hidden');
+            el.innerHTML = 'Carregando...';
+            
+            const res = await api(`/carne/${id}/parcelas`);
             const parcelas = await res.json();
-            const meses = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
-
-            container.innerHTML = parcelas.map((p, idx) => `
-                <div onclick="pagarParcela(${p.id}, ${id})" class="cursor-pointer flex flex-col items-center gap-1 group">
-                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm transition-transform group-hover:scale-110 ${p.status === 'pago' ? 'bg-green-500' : 'bg-red-400'}">
+            const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+            
+            el.innerHTML = parcelas.map((p, i) => `
+                <div onclick="togglePagamento(${p.id}, ${id})" class="text-center cursor-pointer hover:opacity-80">
+                    <div class="w-8 h-8 mx-auto rounded-full flex items-center justify-center text-xs text-white font-bold ${p.status==='pago'?'bg-green-500':'bg-red-400'}">
                         ${p.numero_parcela}
                     </div>
-                    <span class="text-[10px] text-gray-400 font-bold">${meses[idx]}</span>
+                    <span class="text-[10px] text-gray-400">${meses[i]}</span>
                 </div>
             `).join('');
         }
 
-        async function pagarParcela(pid, cid) {
-            if (!confirm('Alterar status?')) return;
-            await fetch(`/api/parcela/${pid}`, { method: 'PUT', headers: apiHeaders() });
-            carregarParcelas(cid); carregarDashboard();
+        async function togglePagamento(pid, cid) {
+            if(!confirm('Alterar pagamento?')) return;
+            await api(`/parcela/${pid}`, { method: 'PUT' });
+            verParcelas(cid); carregarDashboard();
         }
 
-        // Novo Carnê
-        document.getElementById('new-carne-form').addEventListener('submit', async (e) => {
+        document.getElementById('form-novo').addEventListener('submit', async (e) => {
             e.preventDefault();
             const dados = {
-                nome: document.getElementById('inp-nome').value,
-                telefone: document.getElementById('inp-telefone').value,
-                numero_carne: document.getElementById('inp-numero').value,
-                valor: document.getElementById('inp-valor').value,
-                ano: document.getElementById('inp-ano').value
+                nome: document.getElementById('nome').value,
+                telefone: document.getElementById('telefone').value,
+                numero_carne: document.getElementById('numero').value,
+                valor: document.getElementById('valor').value,
+                ano: document.getElementById('ano').value
             };
-            const res = await fetch('/api/cadastrar', { method: 'POST', headers: apiHeaders(), body: JSON.stringify(dados) });
-            if (res.ok) { toggleModal('new-carne-modal'); e.target.reset(); carregarDashboard(); }
+            await api('/cadastrar', { method: 'POST', body: JSON.stringify(dados) });
+            toggleModal('modal-novo');
+            e.target.reset();
+            carregarDashboard();
         });
 
-        async function comprarAssinatura() {
-            const res = await fetch('/api/criar-pagamento', { method: 'POST', headers: apiHeaders() });
+        async function pagar() {
+            const res = await api('/criar-pagamento', { method: 'POST' });
             const data = await res.json();
-            if (data.init_point) window.location.href = data.init_point;
+            if (data.init_point) location.href = data.init_point;
         }
 
         function toggleModal(id) { document.getElementById(id).classList.toggle('hidden'); }
-        
-        // Init Check
-        document.addEventListener('DOMContentLoaded', checkAuth);
+        checkAuth();
     </script>
 </body>
 </html>
