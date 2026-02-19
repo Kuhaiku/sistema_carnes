@@ -1,173 +1,131 @@
-require('dotenv').config();
 const express = require('express');
-const mysql = require('mysql2');
+const mysql = require('mysql2/promise');
 const cors = require('cors');
-const bodyParser = require('body-parser');
-const { MercadoPagoConfig, Preference } = require('mercadopago');
 const path = require('path');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+require('dotenv').config(); // Necessário para ler o .env localmente
 
 const app = express();
 app.use(cors());
-app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json());
 
-// --- CONFIGURAÇÕES ---
-const PORT = process.env.PORT || 3000;
-const PRECO_ASSINATURA = parseFloat(process.env.ASSINATURA_PRECO || 80);
-const JWT_SECRET = process.env.JWT_SECRET;
-const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+// Servir os arquivos estáticos (aponta para o index.html na mesma pasta)
+app.use(express.static(__dirname));
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
 
-// --- CONEXÃO BANCO ---
-const db = mysql.createConnection({
+// Configuração do Banco de Dados com os dados do .env
+const pool = mysql.createPool({
     host: process.env.DB_HOST,
     port: process.env.DB_PORT,
     user: process.env.DB_USER,
-    password: process.env.DB_PASS,
-    database: process.env.DB_NAME
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
 });
 
-db.connect(err => {
-    if (err) console.error('Erro MySQL:', err.message);
-    else console.log('MySQL Conectado!');
-});
+// ==========================================
+// ROTAS DA API
+// ==========================================
 
-const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
-
-// --- MIDDLEWARES ---
-
-const verificarToken = (req, res, next) => {
-    // Permite passar direto se for rota pública (Login/Registro/Pagamento)
-    // Isso evita erro 401 em rotas que não precisam de login
-    const publicas = ['/auth', '/api/config', '/api/pagamento-sucesso'];
-    if (publicas.some(r => req.originalUrl.includes(r))) return next();
-
-    const token = req.headers['authorization'];
-    if (!token) return res.status(401).json({ error: 'Token ausente' });
-    
+app.get('/api/carnes', async (req, res) => {
     try {
-        const decoded = jwt.verify(token.replace('Bearer ', ''), JWT_SECRET);
-        req.userId = decoded.id;
-        next();
-    } catch (err) { res.status(401).json({ error: 'Token inválido' }); }
-};
+        const query = `
+            SELECT c.id, c.nome, c.telefone, c.numero_carne, 
+                   f.numero_folha, f.valor, f.paga 
+            FROM carnes c 
+            LEFT JOIN folhas f ON c.id = f.carne_id 
+            ORDER BY c.id DESC, f.numero_folha ASC
+        `;
+        const [rows] = await pool.query(query);
 
-const verificarAssinatura = (req, res, next) => {
-    // Rotas liberadas do bloqueio de assinatura
-    const liberadas = ['/auth', '/api/criar-pagamento', '/api/pagamento-sucesso', '/api/status-assinatura', '/api/config'];
-    
-    // CORREÇÃO AQUI: Usar req.originalUrl
-    if (liberadas.some(r => req.originalUrl.includes(r))) return next();
-
-    db.query('SELECT * FROM config_sistema WHERE usuario_id = ?', [req.userId], (err, result) => {
-        if (err || result.length === 0) return res.status(403).json({ error: 'assinatura_nao_encontrada' });
-        
-        const config = result[0];
-        const agora = new Date();
-        const expiracao = new Date(config.data_expiracao);
-
-        if (config.status_assinatura === 'expirada' || agora > expiracao) {
-            return res.status(403).json({ error: 'assinatura_expirada' });
-        }
-        next();
-    });
-};
-
-// --- ROTAS ---
-
-// Rota de Config (Pública)
-app.get('/api/config', (req, res) => {
-    res.json({ preco: PRECO_ASSINATURA });
-});
-
-app.post('/auth/register', async (req, res) => {
-    const { email, senha } = req.body;
-    try {
-        const hash = await bcrypt.hash(senha, 10);
-        const [u] = await db.promise().query('INSERT INTO usuarios (email, senha) VALUES (?, ?)', [email, hash]);
-        // Cria já expirada para forçar pagamento
-        await db.promise().query("INSERT INTO config_sistema (usuario_id, status_assinatura, data_expiracao) VALUES (?, 'expirada', DATE_SUB(NOW(), INTERVAL 1 DAY))", [u.insertId]);
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: 'Erro ao criar conta.' }); }
-});
-
-app.post('/auth/login', (req, res) => {
-    const { email, senha } = req.body;
-    db.query('SELECT * FROM usuarios WHERE email = ?', [email], async (err, results) => {
-        if (results.length === 0 || !(await bcrypt.compare(senha, results[0].senha))) {
-            return res.status(401).json({ error: 'Credenciais inválidas' });
-        }
-        const token = jwt.sign({ id: results[0].id }, JWT_SECRET, { expiresIn: '24h' });
-        res.json({ token });
-    });
-});
-
-// Aplica middlewares nas rotas /api
-app.use('/api', verificarToken);
-app.use('/api', verificarAssinatura);
-
-// --- ROTAS PROTEGIDAS/SISTEMA ---
-
-app.get('/api/status-assinatura', (req, res) => {
-    db.query('SELECT * FROM config_sistema WHERE usuario_id = ?', [req.userId], (err, result) => {
-        if (result.length === 0) return res.json({ status: 'expirada', dias: 0 });
-        const cfg = result[0];
-        const dias = Math.ceil((new Date(cfg.data_expiracao) - new Date()) / 86400000);
-        res.json({ 
-            status: (cfg.status_assinatura === 'expirada' || dias <= 0) ? 'expirada' : 'ativa', 
-            dias_restantes: dias > 0 ? dias : 0 
-        });
-    });
-});
-
-app.post('/api/criar-pagamento', async (req, res) => {
-    try {
-        const preference = new Preference(client);
-        const response = await preference.create({
-            body: {
-                items: [{ title: 'Assinatura Mensal', unit_price: PRECO_ASSINATURA, quantity: 1, currency_id: 'BRL' }],
-                back_urls: { 
-                    success: `${BASE_URL}/api/pagamento-sucesso?user=${req.userId}`,
-                    failure: `${BASE_URL}`, pending: `${BASE_URL}` 
-                },
-                auto_return: 'approved'
+        const carnesMap = new Map();
+        rows.forEach(row => {
+            if (!carnesMap.has(row.id)) {
+                carnesMap.set(row.id, {
+                    id: row.id,
+                    nome: row.nome,
+                    telefone: row.telefone,
+                    numero: row.numero_carne,
+                    expandido: true,
+                    folhaAtiva: null, // Controle para o input inline abrir
+                    folhas: []
+                });
+            }
+            if (row.numero_folha) {
+                carnesMap.get(row.id).folhas.push({
+                    index: row.numero_folha,
+                    paga: row.paga === 1,
+                    valor: parseFloat(row.valor)
+                });
             }
         });
-        res.json({ init_point: response.init_point });
-    } catch (e) { res.status(500).json({ error: 'Erro MP' }); }
+
+        res.json(Array.from(carnesMap.values()));
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Erro ao buscar carnês' });
+    }
 });
 
-app.get('/api/pagamento-sucesso', (req, res) => {
-    if (!req.query.user) return res.redirect('/');
-    db.query("UPDATE config_sistema SET status_assinatura='ativa', data_expiracao=DATE_ADD(NOW(), INTERVAL 30 DAY) WHERE usuario_id=?", [req.query.user], () => res.redirect('/'));
-});
+app.post('/api/carnes', async (req, res) => {
+    const { nome, telefone, numero } = req.body;
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
 
-// CRUD
-app.get('/api/dashboard', (req, res) => {
-    const sql = `SELECT m.id, m.nome, c.id as carne_id, c.numero_carne, (SELECT COUNT(*) FROM parcelas p WHERE p.carne_id = c.id AND p.status = 'pago') as pagas FROM membros m JOIN carnes c ON m.id = c.membro_id WHERE m.usuario_id = ? ORDER BY m.id DESC`;
-    db.query(sql, [req.userId], (err, r) => res.json(r || []));
-});
-
-app.get('/api/carne/:id/parcelas', (req, res) => db.query('SELECT * FROM parcelas WHERE carne_id = ? ORDER BY numero_parcela ASC', [req.params.id], (err, r) => res.json(r)));
-
-app.post('/api/cadastrar', async (req, res) => {
-    const { nome, telefone, numero_carne, valor, ano } = req.body;
     try {
-        const [m] = await db.promise().query('INSERT INTO membros (usuario_id, nome, telefone) VALUES (?, ?, ?)', [req.userId, nome, telefone]);
-        const [c] = await db.promise().query('INSERT INTO carnes (membro_id, numero_carne, valor_parcela, ano_referencia) VALUES (?, ?, ?, ?)', [m.insertId, numero_carne, valor, ano]);
-        const p = [];
-        for (let i = 1; i <= 12; i++) p.push([c.insertId, i, `${ano}-${i}-10`]);
-        await db.promise().query('INSERT INTO parcelas (carne_id, numero_parcela, vencimento) VALUES ?', [p]);
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+        const [resultCarne] = await connection.query(
+            'INSERT INTO carnes (nome, telefone, numero_carne) VALUES (?, ?, ?)',
+            [nome, telefone, numero]
+        );
+        const carneId = resultCarne.insertId;
+
+        const folhasData = [];
+        for (let i = 1; i <= 12; i++) {
+            folhasData.push([carneId, i]);
+        }
+
+        await connection.query(
+            'INSERT INTO folhas (carne_id, numero_folha) VALUES ?',
+            [folhasData]
+        );
+
+        await connection.commit();
+        res.status(201).json({ message: 'Carnê gerado com sucesso!', id: carneId });
+    } catch (error) {
+        await connection.rollback();
+        console.error(error);
+        if (error.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: 'Número de carnê já existe.' });
+        res.status(500).json({ error: 'Erro ao cadastrar carnê' });
+    } finally {
+        connection.release();
+    }
 });
 
-app.put('/api/parcela/:id', (req, res) => {
-    db.query('SELECT status FROM parcelas WHERE id=?', [req.params.id], (err, r) => {
-        const n = r[0].status === 'pendente' ? 'pago' : 'pendente';
-        db.query('UPDATE parcelas SET status=?, data_pagamento=? WHERE id=?', [n, n === 'pago' ? new Date() : null, req.params.id], () => res.json({ novo: n }));
-    });
+app.put('/api/carnes/:id/folhas/:numero_folha', async (req, res) => {
+    const { id, numero_folha } = req.params;
+    const { valor } = req.body;
+    try {
+        await pool.query(
+            'UPDATE folhas SET paga = 1, valor = ?, data_pagamento = NOW() WHERE carne_id = ? AND numero_folha = ?',
+            [valor, id, numero_folha]
+        );
+        res.json({ message: 'Pagamento registrado!' });
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao registrar pagamento' });
+    }
 });
 
-app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+app.delete('/api/carnes/:id', async (req, res) => {
+    try {
+        await pool.query('DELETE FROM carnes WHERE id = ?', [req.params.id]);
+        res.json({ message: 'Carnê excluído!' });
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao excluir carnê' });
+    }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`🚀 Servidor rodando na porta ${PORT}`));
