@@ -45,7 +45,7 @@
 
     <div class="max-w-7xl mx-auto p-4 sm:p-6">
         
-        <header class="mb-8 grid grid-cols-1 md:grid-cols-4 gap-4">
+        <header class="mb-8 grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
                 <div class="bg-emerald-100 p-3 rounded-xl text-emerald-600">💰</div>
                 <div><p class="text-xs text-slate-500 font-bold uppercase">Arrecadado</p><p class="text-xl font-black text-slate-800" id="totalValor">R$ 0,00</p></div>
@@ -58,14 +58,9 @@
                 <div class="bg-indigo-100 p-3 rounded-xl text-indigo-600">📚</div>
                 <div><p class="text-xs text-slate-500 font-bold uppercase">Carnês</p><p class="text-xl font-black text-slate-800" id="totalCarnes">0</p></div>
             </div>
-            <div class="flex items-center">
-                <button onclick="alternarLista()" id="btnVerLista" class="w-full bg-slate-800 hover:bg-black text-white font-bold py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2">
-                    <span id="textoBotaoLista">Carregar Lista de Carnês</span>
-                </button>
-            </div>
         </header>
 
-        <section id="sessaoLista" class="hidden animate-fade-in">
+        <section id="sessaoLista" class="animate-fade-in">
             <div class="bg-white p-4 rounded-2xl shadow-sm border mb-6 flex flex-col md:flex-row gap-4 justify-between items-center">
                 <input type="text" id="busca" placeholder="Filtrar por nome ou número..." class="w-full md:w-96 px-4 py-2 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" oninput="renderizarCards()">
                 <button onclick="document.getElementById('formCadastroSessao').classList.toggle('hidden')" class="text-indigo-600 font-bold text-sm hover:underline">+ Novo Cadastro</button>
@@ -73,10 +68,10 @@
 
             <div id="formCadastroSessao" class="hidden bg-white p-6 rounded-2xl shadow-sm border mb-8">
                 <form id="formCadastro" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                    <input type="text" id="nome" required placeholder="Nome" class="px-4 py-2 border rounded-xl">
-                    <input type="tel" id="telefone" required placeholder="Telefone" class="px-4 py-2 border rounded-xl">
-                    <input type="text" id="numCarne" required placeholder="Nº Carnê" class="px-4 py-2 border rounded-xl">
-                    <button type="submit" class="bg-indigo-600 text-white font-bold py-2 rounded-xl">Cadastrar</button>
+                    <input type="text" id="nome" required placeholder="Nome" class="px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500">
+                    <input type="tel" id="telefone" required placeholder="Telefone" class="px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500">
+                    <input type="text" id="numCarne" required placeholder="Nº Carnê" class="px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500">
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded-xl transition-colors">Cadastrar</button>
                 </form>
             </div>
 
@@ -92,11 +87,10 @@
             COLUNAS_DESKTOP: 4, // Quantidade de cards por linha no PC
             COLUNAS_TABLET: 2,
             COLUNAS_MOBILE: 1,
-            MAX_RESULTADOS: 100 // Limite de cards para manter a fluidez
+            MAX_RESULTADOS: 100 // Limite de cards renderizados para manter a fluidez
         };
 
         let bdCarnes = [];
-        let listaAberta = false;
         let carneSelecionado = null;
 
         const formatarMoeda = (valor) => Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -115,7 +109,11 @@
                 const response = await fetch('/api/carnes');
                 bdCarnes = await response.json();
                 atualizarDashboard();
-            } catch (e) { console.error("Erro dashboard", e); }
+                
+                // Agora renderiza os cards automaticamente ao carregar
+                aplicarEstiloGrid();
+                renderizarCards();
+            } catch (e) { console.error("Erro ao carregar dados", e); }
         }
 
         function atualizarDashboard() {
@@ -124,22 +122,6 @@
             document.getElementById('totalValor').textContent = formatarMoeda(total);
             document.getElementById('totalFolhas').textContent = pagas;
             document.getElementById('totalCarnes').textContent = bdCarnes.length;
-        }
-
-        function alternarLista() {
-            listaAberta = !listaAberta;
-            const sessao = document.getElementById('sessaoLista');
-            const btnTxt = document.getElementById('textoBotaoLista');
-            
-            if (listaAberta) {
-                sessao.classList.remove('hidden');
-                btnTxt.textContent = "Recolher Lista";
-                aplicarEstiloGrid();
-                renderizarCards();
-            } else {
-                sessao.classList.add('hidden');
-                btnTxt.textContent = "Carregar Lista de Carnês";
-            }
         }
 
         function renderizarCards() {
@@ -235,10 +217,9 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ valor })
                     });
-                    await carregarDashboard(); // Recarrega dados globais
+                    await carregarDashboard(); // Recarrega dados globais, agora também renderiza os cards
                     carneSelecionado = bdCarnes.find(c => c.id === carneSelecionado.id); // Atualiza referência local
                     renderizarFolhasModal();
-                    renderizarCards();
                     acoes.classList.add('hidden');
                 } catch (e) { alert("Erro ao salvar"); }
             };
@@ -260,7 +241,6 @@
                 });
                 this.reset();
                 await carregarDashboard();
-                renderizarCards();
                 document.getElementById('formCadastroSessao').classList.add('hidden');
             } catch (e) { alert("Erro ao cadastrar"); }
         });
